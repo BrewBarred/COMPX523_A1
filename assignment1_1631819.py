@@ -148,3 +148,46 @@ class KNNBase3(Classifier):
 
     def predict_proba(self, instance):
         pass
+
+class KNN_cw_1631819(Classifier):
+    def __init__(self, schema, k=3, w=500, search_method="LinearNNSearch"):
+        super().__init__(schema)
+        self.k = k
+        self.w = w
+        self.search = SearchNeighbours(search_method)
+        self.class_window = {}  # dict: label_index -> newWindow
+
+    def __str__(self):
+        return "KNN_cw_1631819"
+
+    def train(self, instance):
+        label = instance.y_index
+        if label not in self.class_window:
+            self.class_window[label] = newWindow(self.schema)
+        self.class_window[label].add_instance(instance)
+        if self.class_window[label].size() > self.w:
+            self.class_window[label].remove_instance(0)
+
+    def predict(self, instance):
+        if not self.class_window:
+            return 0
+        pool = []
+        for label, window in self.class_window.items():
+            if window.size() == 0:
+                continue
+            neighbours = self.search.do_search(window, instance, self.k)
+            for i in range(neighbours.size()):
+                n = neighbours.get_instance(i)
+                dist = distanceMath(instance, n)
+                pool.append((dist, label))
+        if not pool:
+            return 0
+        pool.sort(key=lambda x: x[0])
+        final_neighbours = pool[:self.k]
+        votes = [0] * self.schema.get_num_classes()
+        for dist, label in final_neighbours:
+            votes[label] += 1
+        return votes.index(max(votes))
+
+    def predict_proba(self, instance):
+        pass
